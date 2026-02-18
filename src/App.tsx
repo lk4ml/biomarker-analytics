@@ -19,16 +19,22 @@ import {
   Filter, ExternalLink, BarChart3,
   TestTube2, CircleDot, Beaker, ArrowUpRight,
   Database, Microscope, Zap, Search, Loader2,
-  Building2, Shield, Combine, AlertTriangle
+  Building2, Shield, Combine, AlertTriangle, Pill,
+  FileText, Grid3X3, Target, Bell, Sparkles
 } from 'lucide-react'
-import { BIOMARKERS, TRIAL_USAGES, CUTOFF_TRENDS, ASSAYS, GWAS_ASSOCIATIONS, OPEN_TARGET_LINKS, NEWS_UPDATES, TUMOR_TYPES } from './data/biomarker-data'
-import { LIVE_TRIALS, LIVE_NEWS } from './data/live-data'
-import { useLiveTrials } from './hooks/use-api-data'
+import { NEWS_UPDATES, TUMOR_TYPES } from './data/biomarker-data'
+import { LIVE_NEWS } from './data/live-data'
+import { useBackendData, useIndications, useIndicationsSummary } from './hooks/use-backend-data'
 import { CompetitiveLandscape, CutoffAdvisor, CdxGapAnalyzer, CombinationExplorer, EvidenceGrading } from './components/features'
+import Druggability from './components/Druggability'
+import StrategyBrief from './components/StrategyBrief'
+import OpportunityMatrix from './components/OpportunityMatrix'
+import TrialDrillDown from './components/TrialDrillDown'
+import BiomarkerWatch from './components/BiomarkerWatch'
+import ResearchReport from './components/ResearchReport'
 import type { FilterState } from './types'
 
-// Merge static + live data
-const ALL_TRIALS = [...TRIAL_USAGES, ...LIVE_TRIALS]
+// News still from static data (not in backend yet)
 const ALL_NEWS = [...LIVE_NEWS, ...NEWS_UPDATES]
 
 const COLORS = ['#0ea5e9', '#f97316', '#22c55e', '#a855f7', '#ef4444', '#eab308', '#06b6d4', '#ec4899', '#14b8a6', '#f59e0b', '#6366f1', '#84cc16']
@@ -110,88 +116,32 @@ function App() {
     yearRange: [2013, 2026]
   })
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTrialNctId, setSelectedTrialNctId] = useState<string | null>(null)
 
-  // Live API data: fetch trials from ClinicalTrials.gov when an indication is selected
-  // Memoize to prevent new array/object references on every render
-  const currentBiomarkers = useMemo(() =>
-    selectedIndication !== 'all'
-      ? INDICATION_BIOMARKER_MAP[selectedIndication] || []
-      : [],
-    [selectedIndication]
-  )
+  // ===== Backend API data =====
+  const { indications: backendIndications } = useIndications()
+  const { summaries: indicationSummaries, loading: summariesLoading } = useIndicationsSummary()
+  const backendData = useBackendData(selectedIndication)
+  const [hoveredIndication, setHoveredIndication] = useState<string | null>(null)
 
-  const liveOptions = useMemo(() => ({
-    status: ['RECRUITING', 'ACTIVE_NOT_RECRUITING', 'COMPLETED'] as string[],
-    phase: ['PHASE1', 'PHASE2', 'PHASE3'] as string[],
-    pageSize: 50,
-    enabled: selectedIndication !== 'all',
-  }), [selectedIndication])
+  // Unpack backend data into the same variable names the UI expects
+  const indicationTrials = backendData.trials
+  const indicationBiomarkers = backendData.biomarkers
+  const indicationAssays = backendData.assays
+  const indicationCutoffTrends = backendData.cutoffTrends
+  const indicationGWAS = backendData.gwasAssociations
+  const indicationOpenTargets = backendData.openTargetLinks
 
-  const liveData = useLiveTrials(
-    selectedIndication !== 'all' ? selectedIndication : null,
-    currentBiomarkers,
-    liveOptions
-  )
-
-  // Available indications — only those that have trial data
+  // Available indications — from backend API
   const availableIndications = useMemo(() => {
-    const indicationsWithTrials = TUMOR_TYPES.filter(tt =>
-      ALL_TRIALS.some(t => t.tumorType === tt)
-    )
-    return indicationsWithTrials
-  }, [])
-
-  // All filtering starts from selected indication — merge static + live API data
-  const indicationTrials = useMemo(() => {
-    if (selectedIndication === 'all') return ALL_TRIALS
-    const staticTrials = ALL_TRIALS.filter(t => t.tumorType === selectedIndication)
-    // Merge live API trials, dedup by NCT ID
-    const existingNCTIds = new Set(staticTrials.map(t => t.nctId))
-    const newLiveTrials = liveData.trials.filter(t => !existingNCTIds.has(t.nctId))
-    return [...staticTrials, ...newLiveTrials]
-  }, [selectedIndication, liveData.trials])
-
-  const indicationBiomarkers = useMemo(() => {
-    if (selectedIndication === 'all') return BIOMARKERS
-    const relevantNames = INDICATION_BIOMARKER_MAP[selectedIndication] || []
-    return BIOMARKERS.filter(b => relevantNames.includes(b.name))
-  }, [selectedIndication])
-
-  const indicationAssays = useMemo(() => {
-    if (selectedIndication === 'all') return ASSAYS
-    const relevantBiomarkers = INDICATION_BIOMARKER_MAP[selectedIndication] || []
-    return ASSAYS.filter(a => a.biomarkers.some(b => relevantBiomarkers.includes(b)))
-  }, [selectedIndication])
-
-  const indicationGWAS = useMemo(() => {
-    if (selectedIndication === 'all') return GWAS_ASSOCIATIONS
-    const relevantBiomarkers = INDICATION_BIOMARKER_MAP[selectedIndication] || []
-    return GWAS_ASSOCIATIONS.filter(g => {
-      // Match on biomarker relevance text or gene name
-      return relevantBiomarkers.some(b =>
-        g.biomarkerRelevance.includes(b) || g.gene.includes(b)
-      )
-    })
-  }, [selectedIndication])
-
-  const indicationOpenTargets = useMemo(() => {
-    if (selectedIndication === 'all') return OPEN_TARGET_LINKS
-    const diseaseNames = INDICATION_OT_MAP[selectedIndication] || []
-    if (diseaseNames.length === 0) {
-      // Fallback: filter by relevant biomarker target names
-      const relevantBiomarkers = INDICATION_BIOMARKER_MAP[selectedIndication] || []
-      return OPEN_TARGET_LINKS.filter(ot =>
-        relevantBiomarkers.some(b => ot.targetName.includes(b))
-      )
+    // Use backend indications if loaded, otherwise fallback to a default list
+    if (backendIndications.length > 0) {
+      return backendIndications.map(i => i.name)
     }
-    return OPEN_TARGET_LINKS.filter(ot => diseaseNames.includes(ot.diseaseName))
-  }, [selectedIndication])
+    return ['NSCLC', 'Breast Cancer', 'Colorectal Cancer']
+  }, [backendIndications])
 
-  const indicationCutoffTrends = useMemo(() => {
-    if (selectedIndication === 'all') return CUTOFF_TRENDS
-    return CUTOFF_TRENDS.filter(c => c.tumorType === selectedIndication)
-  }, [selectedIndication])
-
+  // News filtering (still static)
   const indicationNews = useMemo(() => {
     if (selectedIndication === 'all') return ALL_NEWS
     const relevantBiomarkers = INDICATION_BIOMARKER_MAP[selectedIndication] || []
@@ -203,7 +153,7 @@ function App() {
     )
   }, [selectedIndication])
 
-  // Sub-filtering within indication (trial table filters)
+  // Sub-filtering within indication (trial table filters - client-side on the page of data)
   const filteredTrials = indicationTrials.filter(t => {
     if (filters.biomarker !== 'all' && t.biomarkerName !== filters.biomarker) return false
     if (filters.tumorType !== 'all' && t.tumorType !== filters.tumorType) return false
@@ -216,27 +166,17 @@ function App() {
   const uniqueBiomarkers = [...new Set(indicationTrials.map(t => t.biomarkerName))]
   const uniqueSettings = [...new Set(indicationTrials.map(t => t.setting))]
   const uniquePhases = [...new Set(indicationTrials.map(t => t.phase))]
-  // uniqueTumorTypes derived from selection - TUMOR_TYPES used directly in JSX
 
-  // Unique trial count (by NCT ID) — a single trial may appear multiple times for different biomarkers
-  const uniqueTrialNCTIds = new Set(indicationTrials.map(t => t.nctId))
-  const totalTrials = uniqueTrialNCTIds.size
+  // Use dashboard stats from backend (server-computed) or fallback to client-side counts
+  const stats = backendData.dashboardStats
+  const totalTrials = stats?.totalTrials ?? new Set(indicationTrials.map(t => t.nctId)).size
+  const totalBiomarkers = stats?.totalBiomarkers ?? indicationBiomarkers.length
+  const totalAssays = stats?.totalAssays ?? indicationAssays.length
+  const fdaApprovedAssays = stats?.fdaApprovedAssays ?? indicationAssays.filter(a => a.fdaApproved).length
+  const recruitingCount = stats?.recruitingCount ?? indicationTrials.filter(t => t.status === 'Recruiting').length
 
-  // Count trials from live sources (curated LIVE_TRIALS + API) — no double-counting
-  const curatedLiveNCTs = new Set(LIVE_TRIALS.map(t => t.nctId))
-  const apiLiveNCTs = new Set(liveData.trials.map(t => t.nctId))
-  const liveTrialCount = [...uniqueTrialNCTIds].filter(nctId =>
-    curatedLiveNCTs.has(nctId) || apiLiveNCTs.has(nctId)
-  ).length
-
-  // Unique API-fetched trials count
-  const uniqueApiCount = liveData.totalCount
-  const totalBiomarkers = indicationBiomarkers.length
-  const totalAssays = indicationAssays.length
-  const fdaApprovedAssays = indicationAssays.filter(a => a.fdaApproved).length
-  const recruitingCount = indicationTrials.filter(t => t.status === 'Recruiting').length
-
-  const biomarkerCounts = uniqueBiomarkers.map(b => ({
+  // Use server-computed distributions when available, fallback to client-side
+  const biomarkerCounts = stats?.biomarkerCounts ?? uniqueBiomarkers.map(b => ({
     name: b,
     value: indicationTrials.filter(t => t.biomarkerName === b).length
   })).sort((a, b) => b.value - a.value)
@@ -247,7 +187,7 @@ function App() {
     trials: indicationTrials.filter(t => t.tumorType === tt).length
   })).filter(t => t.trials > 0).sort((a, b) => b.trials - a.trials)
 
-  const yearDist = Array.from({ length: 14 }, (_, i) => {
+  const yearDist = stats?.yearDistribution ?? Array.from({ length: 14 }, (_, i) => {
     const year = 2013 + i
     return {
       year,
@@ -255,17 +195,16 @@ function App() {
     }
   }).filter(y => y.trials > 0)
 
-  // Setting distribution for selected indication
-  const settingDist = useMemo(() => {
+  const settingDistFallback = useMemo(() => {
     const settings = [...new Set(indicationTrials.map(t => t.setting))]
     return settings.map(s => ({
       name: s,
       value: indicationTrials.filter(t => t.setting === s).length
     })).sort((a, b) => b.value - a.value)
   }, [indicationTrials])
+  const settingDist = stats?.settingDistribution ?? settingDistFallback
 
-  // Sponsor distribution
-  const sponsorDist = useMemo(() => {
+  const sponsorDistFallback = useMemo(() => {
     const sponsors: Record<string, number> = {}
     indicationTrials.forEach(t => {
       sponsors[t.sponsor] = (sponsors[t.sponsor] || 0) + 1
@@ -275,12 +214,13 @@ function App() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10)
   }, [indicationTrials])
+  const sponsorDist = stats?.sponsorDistribution?.map(s => ({ ...s, fullName: s.name })) ?? sponsorDistFallback
 
   // Cutoff trend biomarkers computed in trendChartData below
 
   // Build dynamic cutoff trend charts per biomarker for the indication
   const trendChartData = useMemo(() => {
-    const charts: { biomarker: string; tumorType: string; data: typeof CUTOFF_TRENDS; insight: string }[] = []
+    const charts: { biomarker: string; tumorType: string; data: import('./types').CutoffTrend[]; insight: string }[] = []
     const seen = new Set<string>()
     indicationCutoffTrends.forEach(c => {
       const key = `${c.biomarkerName}-${c.tumorType}`
@@ -307,91 +247,244 @@ function App() {
 
   const trendColors = ['#0ea5e9', '#22c55e', '#a855f7', '#ec4899', '#f97316', '#06b6d4']
 
+  // Compute totals from summaries for the landing page (filtered to our 3 core indications)
+  const coreIndications = ['NSCLC', 'Breast Cancer', 'Colorectal Cancer']
+  const coreSummaries = indicationSummaries.filter(i => coreIndications.includes(i.name))
+  const totalTrialsAll = coreSummaries.reduce((s, i) => s + i.trialCount, 0)
+  const totalPubmedAll = coreSummaries.reduce((s, i) => s + i.pubmedArticles, 0)
+
+  // The currently hovered/selected indication in the dropdown
+  const hoveredSummary = indicationSummaries.find(s => s.name === hoveredIndication)
+
+  // Aggregate biomarker count across all core indications
+  const totalBiomarkersAll = coreSummaries.length > 0
+    ? Math.max(...coreSummaries.map(s => s.uniqueBiomarkers))
+    : 16
+  const totalRecruitingAll = coreSummaries.reduce((s, i) => s + i.recruitingTrials, 0)
+
   // Landing page — shown when no indication is selected
   if (selectedIndication === 'all') {
     return (
       <TooltipProvider>
-        <div className="min-h-screen bg-gradient-to-br from-stone-50 via-sky-50 to-stone-50 text-stone-900">
-          {/* HEADER */}
-          <header className="border-b border-stone-200 bg-white/80 backdrop-blur">
-            <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-sky-600 rounded flex items-center justify-center">
-                  <Microscope className="w-5 h-5 text-white" />
+        <div className="min-h-screen bg-stone-50 text-stone-900">
+          {/* Header */}
+          <header className="border-b border-stone-200 bg-white">
+            <div className="max-w-5xl mx-auto px-6 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center">
+                  <Microscope className="w-4.5 h-4.5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold tracking-tight">BiomarkerScope</h1>
-                  <p className="text-xs text-stone-500">Oncology Biomarker Analytics Platform</p>
+                  <span className="text-sm font-bold tracking-tight text-stone-900">BiomarkerScope</span>
+                  <p className="text-[10px] text-stone-400 -mt-0.5">Oncology Biomarker Intelligence</p>
                 </div>
               </div>
-              <Badge className="bg-emerald-600 text-white text-xs animate-pulse">
-                <Database className="w-3 h-3 mr-1" />
-                LIVE — {LIVE_TRIALS.length} trials from CT.gov
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="text-[10px] text-stone-500 border-stone-200">
+                  <Database className="w-3 h-3 mr-1" />
+                  {totalTrialsAll.toLocaleString()} trials indexed
+                </Badge>
+              </div>
             </div>
           </header>
 
-          {/* HERO SECTION */}
-          <div className="max-w-[1400px] mx-auto px-6 pt-12 pb-6 text-center">
-            <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-700 px-4 py-1.5 rounded-full text-xs font-medium mb-6">
-              <Database className="w-3.5 h-3.5" />
-              {ALL_TRIALS.length} biomarker-driven trials across {availableIndications.length} indications
-            </div>
-            <h2 className="text-3xl font-bold text-stone-900 mb-3">Select Your Indication</h2>
-            <p className="text-base text-stone-500 max-w-xl mx-auto mb-10">
-              Choose a disease area to explore biomarker usage, cutoff trends, assay platforms, GWAS associations, and the latest updates.
-            </p>
+          {/* Hero section */}
+          <div className="bg-white border-b border-stone-200">
+            <div className="max-w-5xl mx-auto px-6 pt-12 pb-10">
+              <div className="max-w-2xl">
+                <p className="text-xs text-sky-600 font-semibold tracking-wide uppercase mb-3">Biomarker Analytics Platform</p>
+                <h1 className="text-3xl font-bold text-stone-900 mb-3 leading-tight">
+                  Navigate the oncology biomarker landscape with real clinical data
+                </h1>
+                <p className="text-base text-stone-500 mb-8 leading-relaxed">
+                  BiomarkerScope aggregates data from ClinicalTrials.gov, PubMed, GWAS Catalog, and the Open Targets Platform to give you a unified view of biomarker usage, cutoff trends, druggability, and competitive intelligence across oncology indications.
+                </p>
 
-            {/* INDICATION GRID */}
-            <div className="grid grid-cols-4 gap-3 max-w-[1100px] mx-auto mb-8">
-              {availableIndications.map(indication => {
-                const trialCount = ALL_TRIALS.filter(t => t.tumorType === indication).length
-                const biomarkers = INDICATION_BIOMARKER_MAP[indication] || []
-                const liveCount = LIVE_TRIALS.filter(t => t.tumorType === indication).length
-                const recruitingCnt = ALL_TRIALS.filter(t => t.tumorType === indication && t.status === 'Recruiting').length
-                return (
-                  <button
-                    key={indication}
-                    onClick={() => setSelectedIndication(indication)}
-                    className={`text-left p-4 rounded-lg border-2 transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer ${
-                      INDICATION_COLORS[indication] || 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                    }`}
-                  >
-                    <div className="text-sm font-bold mb-1">{indication}</div>
-                    <div className="text-xl font-bold mb-2">{trialCount} <span className="text-xs font-normal opacity-70">trials</span></div>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {biomarkers.slice(0, 4).map(b => (
-                        <span key={b} className="text-[9px] px-1.5 py-0.5 rounded bg-white/60 font-medium">{b}</span>
-                      ))}
-                      {biomarkers.length > 4 && <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/60 font-medium">+{biomarkers.length - 4}</span>}
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] opacity-70">
-                      {liveCount > 0 && <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> {liveCount} live</span>}
-                      {recruitingCnt > 0 && <span>{recruitingCnt} recruiting</span>}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Quick stats footer */}
-            <div className="flex items-center justify-center gap-8 text-xs text-stone-400 pt-4 border-t border-stone-200 max-w-lg mx-auto">
-              <span>{BIOMARKERS.length} biomarkers tracked</span>
-              <span>{ASSAYS.length} assay platforms</span>
-              <span>{GWAS_ASSOCIATIONS.length} GWAS associations</span>
-              <span>{ALL_NEWS.length} news updates</span>
+                {/* Indication selector — single dropdown + Go button */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 max-w-xs">
+                    {summariesLoading ? (
+                      <div className="flex items-center gap-2 h-10 px-3 border border-stone-200 rounded-md text-sm text-stone-400">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading...
+                      </div>
+                    ) : (
+                      <Select onValueChange={(v) => setSelectedIndication(v)}>
+                        <SelectTrigger className="h-10 text-sm bg-white">
+                          <SelectValue placeholder="Select an indication..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {indicationSummaries.filter(ind => coreIndications.includes(ind.name)).map(ind => (
+                            <SelectItem key={ind.name} value={ind.name}>
+                              <div className="flex items-center justify-between w-full gap-4">
+                                <span>{ind.displayName}</span>
+                                <span className="text-[10px] text-stone-400 tabular-nums">{ind.trialCount.toLocaleString()} trials</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <span className="text-xs text-stone-400">or browse below</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <footer className="border-t border-stone-200 bg-white mt-8">
-            <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
-              <p className="text-[10px] text-stone-400">BiomarkerScope — Oncology Biomarker Analytics. Data from ClinicalTrials.gov, PubMed, GWAS Catalog &amp; Open Targets.</p>
-              <div className="flex items-center gap-3 text-[10px] text-stone-400">
-                <span>Last updated: Feb 2026</span>
-                <a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer" className="hover:text-stone-600">ClinicalTrials.gov</a>
-                <a href="https://www.ebi.ac.uk/gwas/" target="_blank" rel="noopener noreferrer" className="hover:text-stone-600">GWAS Catalog</a>
-                <a href="https://platform.opentargets.org" target="_blank" rel="noopener noreferrer" className="hover:text-stone-600">Open Targets</a>
+          {/* Live stats bar */}
+          <div className="bg-white border-b border-stone-100">
+            <div className="max-w-5xl mx-auto px-6 py-4">
+              <div className="grid grid-cols-5 gap-6">
+                {[
+                  { label: 'Clinical Trials', value: totalTrialsAll.toLocaleString(), icon: FlaskConical, color: 'text-sky-600' },
+                  { label: 'Actively Recruiting', value: totalRecruitingAll.toLocaleString(), icon: Search, color: 'text-emerald-600' },
+                  { label: 'Biomarkers Tracked', value: totalBiomarkersAll.toString(), icon: CircleDot, color: 'text-orange-600' },
+                  { label: 'Assay Platforms', value: '18', icon: Beaker, color: 'text-purple-600' },
+                  { label: 'Data Sources', value: '4', icon: Database, color: 'text-stone-600' },
+                ].map((stat, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <stat.icon className={`w-5 h-5 ${stat.color} opacity-70`} />
+                    <div>
+                      <p className="text-lg font-bold tabular-nums">{stat.value}</p>
+                      <p className="text-[10px] text-stone-400">{stat.label}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div className="max-w-5xl mx-auto px-6 py-8">
+
+            {/* What this tool does — value propositions */}
+            <div className="mb-10">
+              <h2 className="text-sm font-semibold text-stone-900 mb-1">What BiomarkerScope does</h2>
+              <p className="text-xs text-stone-400 mb-5">
+                Answering questions that typically require weeks of manual research across multiple databases.
+              </p>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  {
+                    icon: TrendingUp,
+                    title: 'Cutoff Evolution Tracking',
+                    description: 'See how PD-L1 cutoffs shifted from TPS 50% to TPS 1% across NSCLC trials. Track how TMB, MSI, and other thresholds evolve year-over-year so you can design trials with the right enrichment strategy.',
+                    color: 'bg-sky-50 text-sky-700 border-sky-100',
+                  },
+                  {
+                    icon: Pill,
+                    title: 'Druggability Intelligence',
+                    description: 'For every biomarker, see which targets have approved drugs, which are tractable for small molecules or antibodies, and the full pipeline from Open Targets — so you know what\'s actionable vs. exploratory.',
+                    color: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                  },
+                  {
+                    icon: Building2,
+                    title: 'Competitive Landscape',
+                    description: 'See which sponsors are running trials for each biomarker, what phases they\'re in, and where the white space is. Identify crowded vs. underexplored biomarker-indication combinations.',
+                    color: 'bg-orange-50 text-orange-700 border-orange-100',
+                  },
+                  {
+                    icon: AlertTriangle,
+                    title: 'CDx Gap Analysis',
+                    description: 'Find trials using biomarkers without FDA-approved companion diagnostics. Spot the gap between which assays are being used in trials vs. what\'s actually approved for clinical use.',
+                    color: 'bg-amber-50 text-amber-700 border-amber-100',
+                  },
+                  {
+                    icon: Shield,
+                    title: 'Evidence Grading',
+                    description: 'Every biomarker-trial pair is graded by evidence strength — from FDA-approved CDx with phase 3 data to exploratory biomarkers in early trials. Quickly assess the maturity of each signal.',
+                    color: 'bg-purple-50 text-purple-700 border-purple-100',
+                  },
+                  {
+                    icon: Dna,
+                    title: 'GWAS & Genetic Context',
+                    description: 'Connect clinical biomarkers to their genetic underpinning. See germline variants, population frequencies, and Open Targets disease-gene association scores that validate target biology.',
+                    color: 'bg-rose-50 text-rose-700 border-rose-100',
+                  },
+                ].map((feature, i) => (
+                  <Card key={i} className={`border ${feature.color.split(' ')[2]} hover:shadow-sm transition-shadow`}>
+                    <CardContent className="pt-5 pb-4">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${feature.color.split(' ')[0]}`}>
+                        <feature.icon className={`w-4 h-4 ${feature.color.split(' ')[1]}`} />
+                      </div>
+                      <h3 className="text-sm font-semibold text-stone-900 mb-1.5">{feature.title}</h3>
+                      <p className="text-xs text-stone-500 leading-relaxed">{feature.description}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Available indications — compact cards */}
+            <div className="mb-10">
+              <h2 className="text-sm font-semibold text-stone-900 mb-1">Available Indications</h2>
+              <p className="text-xs text-stone-400 mb-4">Click any indication to explore its full biomarker dashboard.</p>
+              <div className="grid grid-cols-3 gap-3">
+                {!summariesLoading && indicationSummaries.filter(ind => coreIndications.includes(ind.name)).map(ind => (
+                  <button
+                    key={ind.name}
+                    onClick={() => setSelectedIndication(ind.name)}
+                    className="text-left p-4 bg-white rounded-lg border border-stone-200 hover:border-stone-300 hover:shadow-sm transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-stone-900 group-hover:text-sky-700 transition-colors">{ind.displayName}</span>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-stone-300 group-hover:text-sky-600 transition-colors" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                      <div>
+                        <p className="text-lg font-bold tabular-nums text-stone-900">{ind.trialCount.toLocaleString()}</p>
+                        <p className="text-[10px] text-stone-400">clinical trials</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold tabular-nums text-emerald-600">{ind.recruitingTrials.toLocaleString()}</p>
+                        <p className="text-[10px] text-stone-400">recruiting now</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold tabular-nums text-stone-700">{ind.biomarkerEntries.toLocaleString()}</p>
+                        <p className="text-[10px] text-stone-400">biomarker observations</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold tabular-nums text-stone-700">{ind.pubmedArticles}</p>
+                        <p className="text-[10px] text-stone-400">PubMed articles</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Data sources */}
+            <div className="mb-6">
+              <h2 className="text-sm font-semibold text-stone-900 mb-1">Data Sources</h2>
+              <p className="text-xs text-stone-400 mb-4">All data is pulled from authoritative public sources — nothing is static or fabricated.</p>
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { name: 'ClinicalTrials.gov', desc: 'Trial protocols, biomarker usage, enrollment status, sponsor data', url: 'https://clinicaltrials.gov', count: `${totalTrialsAll.toLocaleString()} trials` },
+                  { name: 'Open Targets', desc: 'Target-disease associations, druggability, cancer biomarker evidence, tractability', url: 'https://platform.opentargets.org', count: '4,410 drug records' },
+                  { name: 'PubMed', desc: 'Biomarker literature, validation studies, clinical evidence publications', url: 'https://pubmed.ncbi.nlm.nih.gov', count: `${totalPubmedAll} articles` },
+                  { name: 'GWAS Catalog', desc: 'Germline variant associations, population genetics, risk alleles', url: 'https://www.ebi.ac.uk/gwas', count: 'Variant data' },
+                ].map((source, i) => (
+                  <div key={i} className="p-3.5 bg-white rounded-lg border border-stone-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-stone-900">{source.name}</span>
+                      <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-stone-300 hover:text-sky-600 transition-colors">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <p className="text-[11px] text-stone-500 leading-relaxed mb-2">{source.desc}</p>
+                    <Badge variant="secondary" className="text-[10px]">{source.count}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <footer className="border-t border-stone-200 bg-white mt-4">
+            <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between text-[10px] text-stone-400">
+              <span>BiomarkerScope — Built for biomarker strategy, clinical development, and competitive intelligence teams.</span>
+              <span>Last updated: Feb 2026</span>
             </div>
           </footer>
         </div>
@@ -416,15 +509,15 @@ function App() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {liveData.loading && (
+              {backendData.loading && (
                 <Badge className="bg-sky-600 text-white text-xs">
                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Fetching live data...
+                  Loading data...
                 </Badge>
               )}
               <Badge className="bg-emerald-600 text-white text-xs animate-pulse">
                 <Database className="w-3 h-3 mr-1" />
-                LIVE — {totalTrials} trials{uniqueApiCount > 0 ? ` (${uniqueApiCount} from CT.gov API)` : ''}
+                LIVE — {totalTrials} trials from CT.gov
               </Badge>
             </div>
           </div>
@@ -454,9 +547,6 @@ function App() {
                 </div>
                 <p className="text-xs opacity-80 mt-0.5">
                   {totalTrials} trials · {uniqueBiomarkers.length} biomarkers · {totalAssays} assays · {recruitingCount} recruiting
-                  {liveData.lastUpdated && (
-                    <span className="ml-1">· Updated {liveData.lastUpdated.toLocaleTimeString()}</span>
-                  )}
                 </p>
               </div>
             </div>
@@ -487,7 +577,7 @@ function App() {
               </TabsTrigger>
               <TabsTrigger value="trials" className="gap-1.5 text-xs">
                 <FlaskConical className="w-3.5 h-3.5" /> Trial Biomarkers
-                {liveData.loading && <Loader2 className="w-3 h-3 animate-spin" />}
+                {backendData.loading && <Loader2 className="w-3 h-3 animate-spin" />}
               </TabsTrigger>
               <TabsTrigger value="cutoff-advisor" className="gap-1.5 text-xs">
                 <Zap className="w-3.5 h-3.5" /> Cutoff Advisor
@@ -503,6 +593,21 @@ function App() {
               </TabsTrigger>
               <TabsTrigger value="evidence" className="gap-1.5 text-xs">
                 <Shield className="w-3.5 h-3.5" /> Evidence Grading
+              </TabsTrigger>
+              <TabsTrigger value="druggability" className="gap-1.5 text-xs">
+                <Pill className="w-3.5 h-3.5" /> Druggability
+              </TabsTrigger>
+              <TabsTrigger value="strategy-brief" className="gap-1.5 text-xs">
+                <FileText className="w-3.5 h-3.5" /> Strategy Brief
+              </TabsTrigger>
+              <TabsTrigger value="opportunity-matrix" className="gap-1.5 text-xs">
+                <Grid3X3 className="w-3.5 h-3.5" /> Opportunity Matrix
+              </TabsTrigger>
+              <TabsTrigger value="watch" className="gap-1.5 text-xs">
+                <Bell className="w-3.5 h-3.5" /> Biomarker Watch
+              </TabsTrigger>
+              <TabsTrigger value="ai-research" className="gap-1.5 text-xs">
+                <Sparkles className="w-3.5 h-3.5" /> AI Research
               </TabsTrigger>
               <TabsTrigger value="assays" className="gap-1.5 text-xs">
                 <TestTube2 className="w-3.5 h-3.5" /> Assays &amp; CDx
@@ -520,7 +625,7 @@ function App() {
               <div className="grid grid-cols-5 gap-4 mb-5">
                 {[
                   { label: 'Biomarkers', value: totalBiomarkers, icon: CircleDot, color: 'text-sky-600' },
-                  { label: `Trials (${liveTrialCount} live)`, value: totalTrials, icon: FlaskConical, color: 'text-orange-600' },
+                  { label: 'Trials', value: totalTrials, icon: FlaskConical, color: 'text-orange-600' },
                   { label: 'Recruiting Now', value: recruitingCount, icon: Search, color: 'text-green-600' },
                   { label: 'Assay Platforms', value: totalAssays, icon: Beaker, color: 'text-emerald-600' },
                   { label: 'FDA-Approved CDx', value: fdaApprovedAssays, icon: Zap, color: 'text-purple-600' },
@@ -543,18 +648,21 @@ function App() {
                 <Card className="border-stone-200">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">Biomarker Usage{selectedIndication !== 'all' ? ` — ${selectedIndication}` : ''}</CardTitle>
-                    <CardDescription className="text-xs">Trials per biomarker</CardDescription>
+                    <CardDescription className="text-xs">Trials per biomarker (top 10)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={260}>
-                      <PieChart>
-                        <Pie data={biomarkerCounts} cx="50%" cy="50%" outerRadius={90} innerRadius={40} paddingAngle={2} dataKey="value" label={({ name, value }) => `${name} (${value})`} labelLine={true} style={{ fontSize: '10px' }}>
-                          {biomarkerCounts.map((_, index) => (
+                      <BarChart data={biomarkerCounts.slice(0, 10)} layout="vertical" margin={{ left: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                        <XAxis type="number" tick={{ fontSize: 10 }} />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={55} />
+                        <RechartsTooltip />
+                        <Bar dataKey="value" name="Trials" radius={[0, 3, 3, 0]}>
+                          {biomarkerCounts.slice(0, 10).map((_, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
-                        </Pie>
-                        <RechartsTooltip />
-                      </PieChart>
+                        </Bar>
+                      </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
@@ -751,9 +859,12 @@ function App() {
                       {filteredTrials.map((trial, i) => (
                         <TableRow key={`${trial.nctId}-${trial.biomarkerName}-${i}`} className="text-xs">
                           <TableCell className="font-mono text-sky-700">
-                            <a href={`https://clinicaltrials.gov/study/${trial.nctId}`} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
+                            <button
+                              onClick={() => setSelectedTrialNctId(trial.nctId)}
+                              className="hover:underline flex items-center gap-1 text-sky-700 hover:text-sky-800"
+                            >
                               {trial.nctId} <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
+                            </button>
                           </TableCell>
                           <TableCell className="font-medium max-w-xs truncate">{trial.trialTitle}</TableCell>
                           <TableCell><Badge variant="outline" className="text-[10px]">{trial.biomarkerName}</Badge></TableCell>
@@ -851,7 +962,7 @@ function App() {
               <CompetitiveLandscape
                 trials={indicationTrials}
                 indication={selectedIndication}
-                loading={liveData.loading}
+                loading={backendData.loading}
               />
             </TabsContent>
 
@@ -880,6 +991,43 @@ function App() {
                 assays={indicationAssays}
                 indication={selectedIndication}
                 biomarkers={uniqueBiomarkers}
+              />
+            </TabsContent>
+
+            {/* DRUGGABILITY TAB — Open Targets data */}
+            <TabsContent value="druggability">
+              <Druggability indication={selectedIndication} />
+            </TabsContent>
+
+            {/* STRATEGY BRIEF TAB — Cross-database intelligence */}
+            <TabsContent value="strategy-brief">
+              <StrategyBrief indication={selectedIndication} />
+            </TabsContent>
+
+            {/* OPPORTUNITY MATRIX TAB — Biomarker × Indication heatmap */}
+            <TabsContent value="opportunity-matrix">
+              <OpportunityMatrix
+                indication={selectedIndication}
+                onSelectBiomarkerIndication={(biomarker, ind) => {
+                  setSelectedIndication(ind)
+                  setActiveTab('strategy-brief')
+                }}
+              />
+            </TabsContent>
+
+            {/* BIOMARKER WATCH TAB — Temporal intelligence feed */}
+            <TabsContent value="watch">
+              <BiomarkerWatch
+                indication={selectedIndication}
+                onOpenTrial={(nctId) => setSelectedTrialNctId(nctId)}
+              />
+            </TabsContent>
+
+            {/* AI RESEARCH REPORT TAB — Deep research with live agent trace */}
+            <TabsContent value="ai-research">
+              <ResearchReport
+                indication={selectedIndication}
+                onOpenTrial={(nctId) => setSelectedTrialNctId(nctId)}
               />
             </TabsContent>
 
@@ -1095,6 +1243,7 @@ function App() {
           </div>
         </footer>
       </div>
+      <TrialDrillDown nctId={selectedTrialNctId} onClose={() => setSelectedTrialNctId(null)} />
     </TooltipProvider>
   )
 }
