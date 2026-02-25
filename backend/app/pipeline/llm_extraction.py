@@ -49,6 +49,7 @@ Interventions: {interventions}
 Extract a JSON array of biomarker usages. For EACH biomarker mentioned, extract:
 {{
   "biomarker_name": "<one of: PD-L1, HER2, EGFR, KRAS, BRAF, ALK, BRCA1/2, MSI, TMB, NTRK, ctDNA, TILs, ER, PR, PIK3CA, Ki-67>",
+  "variant_name": "<specific mutation/variant if mentioned: 'G12C', 'V600E', 'L858R', 'exon 19 del', 'T790M', 'fusion', 'MSI-H', or empty string if not specified>",
   "cutoff_value": "<specific cutoff e.g. '50', 'G12C', '3+', 'positive', 'MSI-H'>",
   "cutoff_unit": "<unit e.g. '% TPS', 'CPS', 'mut/Mb', 'IHC score', 'mutation', 'fusion', 'status'>",
   "cutoff_operator": "<one of: >=, >, <=, <, =, positive, negative, high, low>",
@@ -327,6 +328,7 @@ def run_extraction(use_llm: bool = True, batch_size: int = 20, limit: int | None
                             "trial_id": trial["id"],
                             "biomarker_id": bm_id,
                             "biomarker_name": bm_name,
+                            "variant_name": ext.get("variant_name", "") or None,
                             "cutoff_value": ext.get("cutoff_value", ""),
                             "cutoff_unit": ext.get("cutoff_unit", ""),
                             "cutoff_operator": ext.get("cutoff_operator", ""),

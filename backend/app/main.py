@@ -11,6 +11,7 @@ from app.api.druggability import router as druggability_router
 from app.api.strategy import router as strategy_router
 from app.api.watch import router as watch_router
 from app.api.research_report import router as research_report_router
+from app.api.variant_intelligence import router as variant_router
 
 settings = get_settings()
 
@@ -37,6 +38,7 @@ app.include_router(druggability_router)
 app.include_router(strategy_router)
 app.include_router(watch_router)
 app.include_router(research_report_router)
+app.include_router(variant_router)
 
 
 @app.get("/api/health")

@@ -43,6 +43,8 @@ class TrialBiomarker(Base):
     tumor_type = Column(String(100), index=True)
     therapeutic_setting = Column(String(50), index=True)
 
+    variant_name = Column(String(100), index=True)
+
     extraction_source = Column(String(50))
     extraction_confidence = Column(Float, default=0.5)
     extraction_method = Column(String(50))

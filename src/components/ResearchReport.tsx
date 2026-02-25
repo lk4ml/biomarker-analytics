@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import {
   Sparkles, Loader2, XCircle, RotateCcw,
-  FlaskConical, Database, FileText, Zap
+  FlaskConical, Database, FileText, Zap, Search
 } from 'lucide-react'
 import { getBiomarkers } from '../services/api-client'
 import { useResearchReport } from '../hooks/use-research-report'
@@ -22,6 +22,9 @@ export default function ResearchReport({ indication, onOpenTrial }: Props) {
   const [selectedBiomarker, setSelectedBiomarker] = useState<string>('')
   const [biomarkers, setBiomarkers] = useState<string[]>([])
   const [biomarkersLoading, setBiomarkersLoading] = useState(true)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
 
   const report = useResearchReport()
 
@@ -46,13 +49,50 @@ export default function ResearchReport({ indication, onOpenTrial }: Props) {
     setSelectedBiomarker('')
   }, [indication])
 
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node) &&
+        inputRef.current && !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Filtered suggestions based on input
+  const suggestions = useMemo(() => {
+    if (!selectedBiomarker.trim()) return biomarkers.slice(0, 12)
+    const q = selectedBiomarker.toLowerCase()
+    return biomarkers.filter(b => b.toLowerCase().includes(q)).slice(0, 10)
+  }, [selectedBiomarker, biomarkers])
+
   const isActive = report.status !== 'idle'
-  const canGenerate = selectedBiomarker && report.status === 'idle'
+  const canGenerate = selectedBiomarker.trim().length > 0 && report.status === 'idle'
   const isRunning = report.status === 'gathering' || report.status === 'generating'
 
   const handleGenerate = () => {
-    if (!selectedBiomarker) return
-    report.generateReport(indication, selectedBiomarker)
+    if (!selectedBiomarker.trim()) return
+    setShowSuggestions(false)
+    report.generateReport(indication, selectedBiomarker.trim())
+  }
+
+  const handleSelectSuggestion = (biomarker: string) => {
+    setSelectedBiomarker(biomarker)
+    setShowSuggestions(false)
+    inputRef.current?.focus()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && canGenerate) {
+      handleGenerate()
+    }
+    if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
   }
 
   // Pre-generation state — shown when idle
@@ -70,7 +110,7 @@ export default function ResearchReport({ indication, onOpenTrial }: Props) {
               </div>
               <h2 className="text-lg font-bold text-stone-900 mb-1.5">AI Research Report</h2>
               <p className="text-sm text-stone-500 max-w-md mx-auto">
-                Generate a deep research report for any biomarker in {indication}.
+                Generate a deep research report for any biomarker or variant in {indication}.
                 The AI agent queries 7 databases in real-time, then synthesizes findings into a structured narrative.
               </p>
             </div>
@@ -92,25 +132,72 @@ export default function ResearchReport({ indication, onOpenTrial }: Props) {
               ))}
             </div>
 
-            {/* Biomarker selector + generate button */}
+            {/* Biomarker input with suggestions + generate button */}
             <div className="flex items-center gap-3">
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 {biomarkersLoading ? (
                   <div className="flex items-center gap-2 h-10 px-3 border border-stone-200 rounded-md text-sm text-stone-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Loading biomarkers...
                   </div>
                 ) : (
-                  <Select value={selectedBiomarker} onValueChange={setSelectedBiomarker}>
-                    <SelectTrigger className="h-10 text-sm">
-                      <SelectValue placeholder="Select a biomarker..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {biomarkers.map(b => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+                      <Input
+                        ref={inputRef}
+                        value={selectedBiomarker}
+                        onChange={(e) => {
+                          setSelectedBiomarker(e.target.value)
+                          setShowSuggestions(true)
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a biomarker or variant (e.g. KRAS G12C, PD-L1, TMB)..."
+                        className="h-10 text-sm pl-9 pr-3"
+                      />
+                    </div>
+
+                    {/* Suggestions dropdown */}
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div
+                        ref={suggestionsRef}
+                        className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-lg overflow-hidden"
+                      >
+                        <div className="px-2.5 py-1.5 border-b border-stone-100">
+                          <span className="text-[10px] text-stone-400 font-medium uppercase tracking-wide">
+                            {selectedBiomarker.trim() ? 'Matching biomarkers' : 'Popular biomarkers'}
+                          </span>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {suggestions.map(b => (
+                            <button
+                              key={b}
+                              onClick={() => handleSelectSuggestion(b)}
+                              className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-violet-50 hover:text-violet-700 transition-colors flex items-center gap-2"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-stone-300 shrink-0" />
+                              {b}
+                            </button>
+                          ))}
+                        </div>
+                        {selectedBiomarker.trim() && suggestions.length === 0 && (
+                          <div className="px-3 py-2.5 text-xs text-stone-400">
+                            No matches — press Enter to search for "{selectedBiomarker.trim()}"
+                          </div>
+                        )}
+                        {selectedBiomarker.trim() && !suggestions.some(s => s.toLowerCase() === selectedBiomarker.trim().toLowerCase()) && (
+                          <button
+                            onClick={() => handleSelectSuggestion(selectedBiomarker.trim())}
+                            className="w-full text-left px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 transition-colors border-t border-stone-100 flex items-center gap-2"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                            Search for "{selectedBiomarker.trim()}"
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <Button
@@ -121,6 +208,20 @@ export default function ResearchReport({ indication, onOpenTrial }: Props) {
                 <Sparkles className="w-4 h-4" />
                 Generate Report
               </Button>
+            </div>
+
+            {/* Example queries */}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <span className="text-[10px] text-stone-400">Try:</span>
+              {['KRAS G12C', 'PD-L1', 'HER2 low', 'BRCA1/2', 'TMB'].map(q => (
+                <button
+                  key={q}
+                  onClick={() => { setSelectedBiomarker(q); setShowSuggestions(false) }}
+                  className="text-[11px] px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 hover:bg-violet-100 hover:text-violet-700 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
             </div>
 
             {/* Feature bullets */}

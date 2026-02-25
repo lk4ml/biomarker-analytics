@@ -125,6 +125,7 @@ class OTKnownDrug(Base):
     disease_name = Column(String(300))
     disease_efo_id = Column(String(50))
     indication_name = Column(String(100), nullable=False, index=True)
+    target_variant = Column(String(100))
     fetched_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
@@ -146,3 +147,89 @@ class OTCancerBiomarkerEvidence(Base):
     indication_name = Column(String(100), nullable=False, index=True)
     efo_id = Column(String(50))
     fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MutationPrevalence(Base):
+    """Mutation-level prevalence data from cBioPortal GENIE."""
+    __tablename__ = "mutation_prevalence"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    gene = Column(String(50), nullable=False, index=True)
+    variant_name = Column(String(100), nullable=False, index=True)
+    hgvs_p = Column(String(200))
+    cancer_type = Column(String(200), nullable=False)
+    indication_name = Column(String(100), index=True)
+    sample_count = Column(Integer, nullable=False)
+    total_profiled = Column(Integer, nullable=False)
+    frequency = Column(Float, nullable=False)
+    dataset = Column(String(100), nullable=False)
+    co_mutations = Column(JSONB)
+    source_url = Column(Text)
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("gene", "variant_name", "cancer_type", "dataset",
+                         name="uq_mutation_prev_gene_var_cancer_ds"),
+    )
+
+
+class OncoKBActionability(Base):
+    """Variant-level actionability from OncoKB."""
+    __tablename__ = "oncokb_actionability"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    gene = Column(String(50), nullable=False, index=True)
+    variant_name = Column(String(100), nullable=False, index=True)
+    cancer_type = Column(String(200), nullable=False)
+    indication_name = Column(String(100), index=True)
+    level = Column(String(20), nullable=False)
+    drugs = Column(ARRAY(String), nullable=False, default=[])
+    description = Column(Text)
+    citations = Column(JSONB)
+    source_url = Column(Text)
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("gene", "variant_name", "cancer_type",
+                         name="uq_oncokb_gene_var_cancer"),
+    )
+
+
+class FDAApproval(Base):
+    """FDA drug/CDx approval data from OpenFDA."""
+    __tablename__ = "fda_approvals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    drug_name = Column(String(300), nullable=False)
+    generic_name = Column(String(300))
+    application_number = Column(String(50), nullable=False, index=True)
+    approval_date = Column(Date)
+    supplement_number = Column(String(20))
+    biomarker_gene = Column(String(50), index=True)
+    biomarker_variant = Column(String(100))
+    indication_text = Column(Text)
+    indication_name = Column(String(100), index=True)
+    companion_dx_name = Column(String(300))
+    companion_dx_pma = Column(String(50))
+    source_url = Column(Text)
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("application_number", "supplement_number", "biomarker_variant",
+                         name="uq_fda_app_supp_variant"),
+    )
+
+
+class DataProvenance(Base):
+    """Citation-grade provenance tracking for every data point."""
+    __tablename__ = "data_provenance"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_type = Column(String(50), nullable=False, index=True)
+    entity_id = Column(Integer, nullable=False)
+    source_name = Column(String(100), nullable=False)
+    source_id = Column(String(200))
+    source_url = Column(Text)
+    access_date = Column(Date, nullable=False)
+    version_tag = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
