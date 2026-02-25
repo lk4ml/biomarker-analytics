@@ -40,38 +40,49 @@ _TRIAL_BASE = """
 """
 
 
-def fetch_trial_summary(db: Session, indication: str, biomarker: str) -> dict:
-    """Fetch trial counts, phases, sponsors, and year trends."""
-    params = {"biomarker": biomarker, "indication": indication}
+def _trial_base_with_variant(variant: str | None = None) -> str:
+    """Return trial base SQL, optionally adding variant filter."""
+    base = _TRIAL_BASE
+    if variant:
+        base += " AND (tb.variant_name = :variant OR tb.cutoff_value ILIKE '%' || :variant || '%')"
+    return base
 
-    total = db.execute(text(f"SELECT COUNT(DISTINCT t.id) {_TRIAL_BASE}"), params).scalar() or 0
+
+def fetch_trial_summary(db: Session, indication: str, biomarker: str, variant: str | None = None) -> dict:
+    """Fetch trial counts, phases, sponsors, and year trends."""
+    params: dict = {"biomarker": biomarker, "indication": indication}
+    if variant:
+        params["variant"] = variant
+    _base = _trial_base_with_variant(variant)
+
+    total = db.execute(text(f"SELECT COUNT(DISTINCT t.id) {_base}"), params).scalar() or 0
     recruiting = db.execute(text(f"""
-        SELECT COUNT(DISTINCT t.id) {_TRIAL_BASE} AND t.overall_status = 'Recruiting'
+        SELECT COUNT(DISTINCT t.id) {_base} AND t.overall_status = 'Recruiting'
     """), params).scalar() or 0
 
     by_phase = db.execute(text(f"""
         SELECT t.phase, COUNT(DISTINCT t.id) as cnt
-        {_TRIAL_BASE} AND t.phase IS NOT NULL
+        {_base} AND t.phase IS NOT NULL
         GROUP BY t.phase ORDER BY cnt DESC
     """), params).fetchall()
 
     top_sponsors = db.execute(text(f"""
         SELECT t.lead_sponsor_name, COUNT(DISTINCT t.id) as cnt
-        {_TRIAL_BASE} AND t.lead_sponsor_name IS NOT NULL
+        {_base} AND t.lead_sponsor_name IS NOT NULL
         GROUP BY t.lead_sponsor_name ORDER BY cnt DESC LIMIT 10
     """), params).fetchall()
 
     year_trend = db.execute(text(f"""
         SELECT t.start_year, COUNT(DISTINCT t.id) as cnt
-        {_TRIAL_BASE} AND t.start_year IS NOT NULL
+        {_base} AND t.start_year IS NOT NULL
         GROUP BY t.start_year ORDER BY t.start_year
     """), params).fetchall()
 
     first_year = db.execute(text(f"""
-        SELECT MIN(t.start_year) {_TRIAL_BASE} AND t.start_year IS NOT NULL
+        SELECT MIN(t.start_year) {_base} AND t.start_year IS NOT NULL
     """), params).scalar()
     latest_year = db.execute(text(f"""
-        SELECT MAX(t.start_year) {_TRIAL_BASE} AND t.start_year IS NOT NULL
+        SELECT MAX(t.start_year) {_base} AND t.start_year IS NOT NULL
     """), params).scalar()
 
     return {
@@ -85,13 +96,16 @@ def fetch_trial_summary(db: Session, indication: str, biomarker: str) -> dict:
     }
 
 
-def fetch_cutoff_landscape(db: Session, indication: str, biomarker: str) -> dict:
+def fetch_cutoff_landscape(db: Session, indication: str, biomarker: str, variant: str | None = None) -> dict:
     """Fetch cutoff values, assays used, CDx availability, and trends."""
-    params = {"biomarker": biomarker, "indication": indication}
+    params: dict = {"biomarker": biomarker, "indication": indication}
+    if variant:
+        params["variant"] = variant
+    _base = _trial_base_with_variant(variant)
 
     dominant_cutoffs = db.execute(text(f"""
         SELECT tb.cutoff_value, tb.cutoff_unit, tb.cutoff_operator, COUNT(*) as cnt
-        {_TRIAL_BASE}
+        {_base}
         AND tb.cutoff_value IS NOT NULL AND tb.cutoff_value != ''
         GROUP BY tb.cutoff_value, tb.cutoff_unit, tb.cutoff_operator
         ORDER BY cnt DESC LIMIT 10
@@ -99,7 +113,7 @@ def fetch_cutoff_landscape(db: Session, indication: str, biomarker: str) -> dict
 
     assays_used = db.execute(text(f"""
         SELECT tb.assay_name, COUNT(*) as cnt
-        {_TRIAL_BASE}
+        {_base}
         AND tb.assay_name IS NOT NULL AND tb.assay_name != '' AND tb.assay_name != 'Not specified'
         GROUP BY tb.assay_name ORDER BY cnt DESC LIMIT 10
     """), params).fetchall()
@@ -303,11 +317,11 @@ def fetch_publications(db: Session, indication: str, biomarker: str) -> list:
     ]
 
 
-def fetch_all_strategy_data(db: Session, indication: str, biomarker: str) -> dict:
-    """Fetch all 7 data sections for a biomarker-indication pair."""
+def fetch_all_strategy_data(db: Session, indication: str, biomarker: str, variant: str | None = None) -> dict:
+    """Fetch all 7 data sections for a biomarker-indication pair, optionally filtered to a specific variant."""
     return {
-        "trialSummary": fetch_trial_summary(db, indication, biomarker),
-        "cutoffLandscape": fetch_cutoff_landscape(db, indication, biomarker),
+        "trialSummary": fetch_trial_summary(db, indication, biomarker, variant),
+        "cutoffLandscape": fetch_cutoff_landscape(db, indication, biomarker, variant),
         "druggability": fetch_druggability(db, indication, biomarker),
         "evidence": fetch_evidence(db, indication, biomarker),
         "assayLandscape": fetch_assay_landscape(db, biomarker),

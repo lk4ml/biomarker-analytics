@@ -5,6 +5,7 @@ from app.models.assay import Assay
 from app.models.external import (
     OpenTargetsAssociation, PubMedArticle, CivicEvidence, GWASAssociation,
     OTTargetAssociation, OTKnownDrug, OTCancerBiomarkerEvidence,
+    MutationPrevalence, OncoKBActionability, FDAApproval, DataProvenance,
 )
 from app.models.pipeline import PipelineRun, CutoffTrend
 
@@ -13,5 +14,6 @@ __all__ = [
     "Biomarker", "TrialBiomarker", "Assay",
     "OpenTargetsAssociation", "PubMedArticle", "CivicEvidence", "GWASAssociation",
     "OTTargetAssociation", "OTKnownDrug", "OTCancerBiomarkerEvidence",
+    "MutationPrevalence", "OncoKBActionability", "FDAApproval", "DataProvenance",
     "PipelineRun", "CutoffTrend",
 ]

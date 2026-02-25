@@ -19,18 +19,27 @@ router = APIRouter(prefix="/api/strategy", tags=["strategy"])
 
 
 @router.get("/brief/{indication}/{biomarker}")
-def get_strategy_brief(indication: str, biomarker: str, db: Session = Depends(get_db)):
+def get_strategy_brief(
+    indication: str,
+    biomarker: str,
+    variant: str | None = None,
+    db: Session = Depends(get_db),
+):
     """
     Generate a cross-database strategy brief for a biomarker-indication pair.
     Joins data from: trials, druggability, cancer evidence, assays, GWAS, PubMed.
+    Optionally filter trial data to a specific variant (e.g., G12C, V600E).
     """
-    data = fetch_all_strategy_data(db, indication, biomarker)
-    return {
+    data = fetch_all_strategy_data(db, indication, biomarker, variant)
+    result = {
         "biomarker": biomarker,
         "indication": indication,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         **data,
     }
+    if variant:
+        result["variant"] = variant
+    return result
 
 
 @router.get("/opportunity-matrix")

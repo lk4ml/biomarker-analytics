@@ -492,3 +492,121 @@ export interface ReportCitation {
   ref_id: string;
   display: string;
 }
+
+// ===== Variant Intelligence Types =====
+
+export interface VariantPrevalence {
+  cancerType: string;
+  frequency: number;
+  sampleCount: number;
+  totalProfiled: number;
+  dataset: string;
+  sourceUrl: string;
+}
+
+export interface VariantActionability {
+  cancerType: string;
+  level: string;
+  drugs: string[];
+  description: string;
+  citations: { pmid: string; title: string }[];
+  sourceUrl: string;
+}
+
+export interface FDAApprovalEntry {
+  drugName: string;
+  genericName: string;
+  applicationNumber: string;
+  approvalDate: string | null;
+  variant: string;
+  indication: string | null;
+  companionDxName: string;
+  companionDxPma: string;
+  sourceUrl: string;
+}
+
+export interface VariantTrials {
+  total: number;
+  recruiting: number;
+  byPhase: { phase: string; count: number }[];
+  topSponsors: { name: string; count: number }[];
+}
+
+export interface CivicEvidenceEntry {
+  level: string;
+  direction: string;
+  significance: string;
+  drugs: string[];
+  disease: string;
+  pmid: string;
+  type: string;
+}
+
+export interface VariantCard {
+  gene: string;
+  variant: string;
+  prevalence: Record<string, VariantPrevalence>;
+  actionability: Record<string, VariantActionability>;
+  fdaApprovals: FDAApprovalEntry[];
+  trials: VariantTrials;
+  coMutations: { gene: string; freq: number }[];
+  civicEvidence: CivicEvidenceEntry[];
+  provenance: { source: string; version: string; accessed: string | null }[];
+}
+
+export interface VariantLandscapeData {
+  gene: string;
+  variants: string[];
+  indications: string[];
+  prevalenceHeatmap: Record<string, Record<string, number>>;
+  actionabilityMap: Record<string, Record<string, { level: string; drugs: string[] }>>;
+}
+
+export interface PatientFunnelStage {
+  name: string;
+  count: number;
+  pct?: number;
+  source: string;
+}
+
+export interface PatientFunnelData {
+  gene: string;
+  variant: string;
+  indication: string;
+  stages: PatientFunnelStage[];
+  recruitingTrials: number;
+  datasetUsed: string | null;
+}
+
+export interface GeneInfo {
+  gene: string;
+  variantCount: number;
+}
+
+export interface VariantInfo {
+  variant: string;
+  hasPrevalence: boolean;
+  hasActionability: boolean;
+}
+
+// ===== Variant Intelligence API Functions =====
+
+export function getVariantCard(gene: string, variant: string): Promise<VariantCard> {
+  return fetchJSON(`/variant/${gene}/${variant}`);
+}
+
+export function getVariantLandscape(gene: string): Promise<VariantLandscapeData> {
+  return fetchJSON(`/variant/${gene}/landscape`);
+}
+
+export function getPatientFunnel(gene: string, variant: string, indication: string): Promise<PatientFunnelData> {
+  return fetchJSON(`/variant/${gene}/${variant}/funnel`, { indication });
+}
+
+export function getAvailableGenes(): Promise<GeneInfo[]> {
+  return fetchJSON('/variant/genes');
+}
+
+export function getVariantsForGene(gene: string): Promise<VariantInfo[]> {
+  return fetchJSON(`/variant/${gene}/variants`);
+}

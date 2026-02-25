@@ -1,12 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
@@ -15,56 +13,24 @@ import {
   Cell, PieChart, Pie, AreaChart, Area
 } from 'recharts'
 import {
-  FlaskConical, TrendingUp, Dna, Newspaper,
+  FlaskConical, TrendingUp,
   Filter, ExternalLink, BarChart3,
   TestTube2, CircleDot, Beaker, ArrowUpRight,
   Database, Microscope, Zap, Search, Loader2,
-  Building2, Shield, Combine, AlertTriangle, Pill,
-  FileText, Grid3X3, Target, Bell, Sparkles
+  Building2, Combine, AlertTriangle, Pill,
+  Grid3X3, Target, Sparkles
 } from 'lucide-react'
-import { NEWS_UPDATES, TUMOR_TYPES } from './data/biomarker-data'
-import { LIVE_NEWS } from './data/live-data'
+import { TUMOR_TYPES } from './data/biomarker-data'
 import { useBackendData, useIndications, useIndicationsSummary } from './hooks/use-backend-data'
-import { CompetitiveLandscape, CutoffAdvisor, CdxGapAnalyzer, CombinationExplorer, EvidenceGrading } from './components/features'
+import { CompetitiveLandscape, CutoffAdvisor, CdxGapAnalyzer, CombinationExplorer } from './components/features'
 import Druggability from './components/Druggability'
-import StrategyBrief from './components/StrategyBrief'
 import OpportunityMatrix from './components/OpportunityMatrix'
 import TrialDrillDown from './components/TrialDrillDown'
-import BiomarkerWatch from './components/BiomarkerWatch'
 import ResearchReport from './components/ResearchReport'
+import VariantLandscape from './components/VariantLandscape'
 import type { FilterState } from './types'
 
-// News still from static data (not in backend yet)
-const ALL_NEWS = [...LIVE_NEWS, ...NEWS_UPDATES]
-
 const COLORS = ['#0ea5e9', '#f97316', '#22c55e', '#a855f7', '#ef4444', '#eab308', '#06b6d4', '#ec4899', '#14b8a6', '#f59e0b', '#6366f1', '#84cc16']
-
-// Map indications to their dominant biomarkers for filtering assays/GWAS
-const INDICATION_BIOMARKER_MAP: Record<string, string[]> = {
-  'NSCLC': ['PD-L1', 'TMB', 'EGFR', 'ALK', 'KRAS', 'BRAF', 'NTRK', 'HER2', 'ctDNA'],
-  'Breast Cancer': ['PD-L1', 'HER2', 'BRCA1/2', 'ctDNA', 'TILs', 'ER', 'PR', 'PIK3CA', 'Ki-67'],
-  'Melanoma': ['PD-L1', 'TMB', 'BRAF', 'ctDNA', 'TILs', 'NTRK'],
-  'Colorectal Cancer': ['MSI', 'KRAS', 'BRAF', 'ctDNA', 'HER2', 'NTRK'],
-  'Urothelial Carcinoma': ['PD-L1', 'TMB', 'EGFR', 'ctDNA'],
-  'Head & Neck SCC': ['PD-L1', 'TMB', 'HPV'],
-  'Gastric Cancer': ['PD-L1', 'HER2', 'MSI'],
-  'Hepatocellular Carcinoma': ['PD-L1', 'ctDNA'],
-  'Renal Cell Carcinoma': ['PD-L1', 'TMB'],
-  'Ovarian Cancer': ['BRCA1/2', 'HER2', 'PD-L1', 'ctDNA'],
-  'Endometrial Cancer': ['MSI', 'PD-L1', 'TMB'],
-  'Prostate Cancer': ['BRCA1/2', 'TMB', 'MSI', 'ctDNA'],
-  'Pancreatic Cancer': ['BRCA1/2', 'KRAS', 'MSI', 'NTRK'],
-  'Cervical Cancer': ['PD-L1'],
-}
-
-// Map indications to Open Targets disease names for filtering
-const INDICATION_OT_MAP: Record<string, string[]> = {
-  'NSCLC': ['Non-small cell lung carcinoma'],
-  'Breast Cancer': ['Breast carcinoma'],
-  'Melanoma': ['Melanoma'],
-  'Colorectal Cancer': ['Colorectal carcinoma'],
-  'Ovarian Cancer': ['Ovarian carcinoma'],
-}
 
 // Abbreviations for indication chips
 const INDICATION_SHORT: Record<string, string> = {
@@ -129,8 +95,6 @@ function App() {
   const indicationBiomarkers = backendData.biomarkers
   const indicationAssays = backendData.assays
   const indicationCutoffTrends = backendData.cutoffTrends
-  const indicationGWAS = backendData.gwasAssociations
-  const indicationOpenTargets = backendData.openTargetLinks
 
   // Available indications — from backend API
   const availableIndications = useMemo(() => {
@@ -140,18 +104,6 @@ function App() {
     }
     return ['NSCLC', 'Breast Cancer', 'Colorectal Cancer']
   }, [backendIndications])
-
-  // News filtering (still static)
-  const indicationNews = useMemo(() => {
-    if (selectedIndication === 'all') return ALL_NEWS
-    const relevantBiomarkers = INDICATION_BIOMARKER_MAP[selectedIndication] || []
-    return ALL_NEWS.filter(n =>
-      n.biomarkers.some(b => relevantBiomarkers.includes(b)) ||
-      n.tags.some(t => t.toLowerCase().includes(selectedIndication.toLowerCase())) ||
-      n.title.toLowerCase().includes(selectedIndication.toLowerCase()) ||
-      n.summary.toLowerCase().includes(selectedIndication.toLowerCase())
-    )
-  }, [selectedIndication])
 
   // Sub-filtering within indication (trial table filters - client-side on the page of data)
   const filteredTrials = indicationTrials.filter(t => {
@@ -266,223 +218,213 @@ function App() {
   if (selectedIndication === 'all') {
     return (
       <TooltipProvider>
-        <div className="min-h-screen bg-stone-50 text-stone-900">
-          {/* Header */}
-          <header className="border-b border-stone-200 bg-white">
-            <div className="max-w-5xl mx-auto px-6 py-3.5 flex items-center justify-between">
+        <div className="min-h-screen bg-slate-50">
+          {/* Minimal top bar */}
+          <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-50">
+            <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0063BE 0%, #0084FF 100%)' }}>
                   <Microscope className="w-4.5 h-4.5 text-white" />
                 </div>
-                <div>
-                  <span className="text-sm font-bold tracking-tight text-stone-900">BiomarkerScope</span>
-                  <p className="text-[10px] text-stone-400 -mt-0.5">Oncology Biomarker Intelligence</p>
-                </div>
+                <span className="text-sm font-bold tracking-tight text-slate-900">BiomarkerScope</span>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge variant="outline" className="text-[10px] text-stone-500 border-stone-200">
-                  <Database className="w-3 h-3 mr-1" />
-                  {totalTrialsAll.toLocaleString()} trials indexed
-                </Badge>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live data
+                </div>
               </div>
             </div>
           </header>
 
-          {/* Hero section */}
-          <div className="bg-white border-b border-stone-200">
-            <div className="max-w-5xl mx-auto px-6 pt-12 pb-10">
-              <div className="max-w-2xl">
-                <p className="text-xs text-sky-600 font-semibold tracking-wide uppercase mb-3">Biomarker Analytics Platform</p>
-                <h1 className="text-3xl font-bold text-stone-900 mb-3 leading-tight">
-                  Navigate the oncology biomarker landscape with real clinical data
-                </h1>
-                <p className="text-base text-stone-500 mb-8 leading-relaxed">
-                  BiomarkerScope aggregates data from ClinicalTrials.gov, PubMed, GWAS Catalog, and the Open Targets Platform to give you a unified view of biomarker usage, cutoff trends, druggability, and competitive intelligence across oncology indications.
-                </p>
-
-                {/* Indication selector — single dropdown + Go button */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 max-w-xs">
-                    {summariesLoading ? (
-                      <div className="flex items-center gap-2 h-10 px-3 border border-stone-200 rounded-md text-sm text-stone-400">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </div>
-                    ) : (
-                      <Select onValueChange={(v) => setSelectedIndication(v)}>
-                        <SelectTrigger className="h-10 text-sm bg-white">
-                          <SelectValue placeholder="Select an indication..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {indicationSummaries.filter(ind => coreIndications.includes(ind.name)).map(ind => (
-                            <SelectItem key={ind.name} value={ind.name}>
-                              <div className="flex items-center justify-between w-full gap-4">
-                                <span>{ind.displayName}</span>
-                                <span className="text-[10px] text-stone-400 tabular-nums">{ind.trialCount.toLocaleString()} trials</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                  <span className="text-xs text-stone-400">or browse below</span>
-                </div>
+          {/* Hero — centered, blue gradient */}
+          <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #001D3D 0%, #003566 30%, #0063BE 70%, #0084FF 100%)' }}>
+            {/* Subtle pattern overlay */}
+            <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+            <div className="relative max-w-6xl mx-auto px-6 pt-20 pb-24 text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 mb-6">
+                <Database className="w-3.5 h-3.5 text-blue-200" />
+                <span className="text-xs text-blue-100 font-medium">{totalTrialsAll.toLocaleString()} clinical trials indexed from ClinicalTrials.gov</span>
               </div>
-            </div>
-          </div>
-
-          {/* Live stats bar */}
-          <div className="bg-white border-b border-stone-100">
-            <div className="max-w-5xl mx-auto px-6 py-4">
-              <div className="grid grid-cols-5 gap-6">
-                {[
-                  { label: 'Clinical Trials', value: totalTrialsAll.toLocaleString(), icon: FlaskConical, color: 'text-sky-600' },
-                  { label: 'Actively Recruiting', value: totalRecruitingAll.toLocaleString(), icon: Search, color: 'text-emerald-600' },
-                  { label: 'Biomarkers Tracked', value: totalBiomarkersAll.toString(), icon: CircleDot, color: 'text-orange-600' },
-                  { label: 'Assay Platforms', value: '18', icon: Beaker, color: 'text-purple-600' },
-                  { label: 'Data Sources', value: '4', icon: Database, color: 'text-stone-600' },
-                ].map((stat, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <stat.icon className={`w-5 h-5 ${stat.color} opacity-70`} />
-                    <div>
-                      <p className="text-lg font-bold tabular-nums">{stat.value}</p>
-                      <p className="text-[10px] text-stone-400">{stat.label}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Main content */}
-          <div className="max-w-5xl mx-auto px-6 py-8">
-
-            {/* What this tool does — value propositions */}
-            <div className="mb-10">
-              <h2 className="text-sm font-semibold text-stone-900 mb-1">What BiomarkerScope does</h2>
-              <p className="text-xs text-stone-400 mb-5">
-                Answering questions that typically require weeks of manual research across multiple databases.
+              <h1 className="text-4xl font-bold text-white mb-4 leading-tight max-w-3xl mx-auto tracking-tight">
+                Oncology Biomarker Intelligence Platform
+              </h1>
+              <p className="text-lg text-blue-100/80 mb-10 max-w-2xl mx-auto leading-relaxed">
+                Unified analytics across clinical trials, druggability, competitive landscape, and companion diagnostics — powered by real-time data from ClinicalTrials.gov, Open Targets, and PubMed.
               </p>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  {
-                    icon: TrendingUp,
-                    title: 'Cutoff Evolution Tracking',
-                    description: 'See how PD-L1 cutoffs shifted from TPS 50% to TPS 1% across NSCLC trials. Track how TMB, MSI, and other thresholds evolve year-over-year so you can design trials with the right enrichment strategy.',
-                    color: 'bg-sky-50 text-sky-700 border-sky-100',
-                  },
-                  {
-                    icon: Pill,
-                    title: 'Druggability Intelligence',
-                    description: 'For every biomarker, see which targets have approved drugs, which are tractable for small molecules or antibodies, and the full pipeline from Open Targets — so you know what\'s actionable vs. exploratory.',
-                    color: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-                  },
-                  {
-                    icon: Building2,
-                    title: 'Competitive Landscape',
-                    description: 'See which sponsors are running trials for each biomarker, what phases they\'re in, and where the white space is. Identify crowded vs. underexplored biomarker-indication combinations.',
-                    color: 'bg-orange-50 text-orange-700 border-orange-100',
-                  },
-                  {
-                    icon: AlertTriangle,
-                    title: 'CDx Gap Analysis',
-                    description: 'Find trials using biomarkers without FDA-approved companion diagnostics. Spot the gap between which assays are being used in trials vs. what\'s actually approved for clinical use.',
-                    color: 'bg-amber-50 text-amber-700 border-amber-100',
-                  },
-                  {
-                    icon: Shield,
-                    title: 'Evidence Grading',
-                    description: 'Every biomarker-trial pair is graded by evidence strength — from FDA-approved CDx with phase 3 data to exploratory biomarkers in early trials. Quickly assess the maturity of each signal.',
-                    color: 'bg-purple-50 text-purple-700 border-purple-100',
-                  },
-                  {
-                    icon: Dna,
-                    title: 'GWAS & Genetic Context',
-                    description: 'Connect clinical biomarkers to their genetic underpinning. See germline variants, population frequencies, and Open Targets disease-gene association scores that validate target biology.',
-                    color: 'bg-rose-50 text-rose-700 border-rose-100',
-                  },
-                ].map((feature, i) => (
-                  <Card key={i} className={`border ${feature.color.split(' ')[2]} hover:shadow-sm transition-shadow`}>
-                    <CardContent className="pt-5 pb-4">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${feature.color.split(' ')[0]}`}>
-                        <feature.icon className={`w-4 h-4 ${feature.color.split(' ')[1]}`} />
-                      </div>
-                      <h3 className="text-sm font-semibold text-stone-900 mb-1.5">{feature.title}</h3>
-                      <p className="text-xs text-stone-500 leading-relaxed">{feature.description}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
 
-            {/* Available indications — compact cards */}
-            <div className="mb-10">
-              <h2 className="text-sm font-semibold text-stone-900 mb-1">Available Indications</h2>
-              <p className="text-xs text-stone-400 mb-4">Click any indication to explore its full biomarker dashboard.</p>
-              <div className="grid grid-cols-3 gap-3">
-                {!summariesLoading && indicationSummaries.filter(ind => coreIndications.includes(ind.name)).map(ind => (
-                  <button
-                    key={ind.name}
-                    onClick={() => setSelectedIndication(ind.name)}
-                    className="text-left p-4 bg-white rounded-lg border border-stone-200 hover:border-stone-300 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-semibold text-stone-900 group-hover:text-sky-700 transition-colors">{ind.displayName}</span>
-                      <ArrowUpRight className="w-3.5 h-3.5 text-stone-300 group-hover:text-sky-600 transition-colors" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                      <div>
-                        <p className="text-lg font-bold tabular-nums text-stone-900">{ind.trialCount.toLocaleString()}</p>
-                        <p className="text-[10px] text-stone-400">clinical trials</p>
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold tabular-nums text-emerald-600">{ind.recruitingTrials.toLocaleString()}</p>
-                        <p className="text-[10px] text-stone-400">recruiting now</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold tabular-nums text-stone-700">{ind.biomarkerEntries.toLocaleString()}</p>
-                        <p className="text-[10px] text-stone-400">biomarker observations</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold tabular-nums text-stone-700">{ind.pubmedArticles}</p>
-                        <p className="text-[10px] text-stone-400">PubMed articles</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+              {/* Centered CTA — Dropdown + info card */}
+              <div className="flex flex-col items-center gap-5">
+                <p className="text-sm text-blue-200/70 font-medium">Select an indication to explore</p>
 
-            {/* Data sources */}
-            <div className="mb-6">
-              <h2 className="text-sm font-semibold text-stone-900 mb-1">Data Sources</h2>
-              <p className="text-xs text-stone-400 mb-4">All data is pulled from authoritative public sources — nothing is static or fabricated.</p>
-              <div className="grid grid-cols-4 gap-3">
-                {[
-                  { name: 'ClinicalTrials.gov', desc: 'Trial protocols, biomarker usage, enrollment status, sponsor data', url: 'https://clinicaltrials.gov', count: `${totalTrialsAll.toLocaleString()} trials` },
-                  { name: 'Open Targets', desc: 'Target-disease associations, druggability, cancer biomarker evidence, tractability', url: 'https://platform.opentargets.org', count: '4,410 drug records' },
-                  { name: 'PubMed', desc: 'Biomarker literature, validation studies, clinical evidence publications', url: 'https://pubmed.ncbi.nlm.nih.gov', count: `${totalPubmedAll} articles` },
-                  { name: 'GWAS Catalog', desc: 'Germline variant associations, population genetics, risk alleles', url: 'https://www.ebi.ac.uk/gwas', count: 'Variant data' },
-                ].map((source, i) => (
-                  <div key={i} className="p-3.5 bg-white rounded-lg border border-stone-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-stone-900">{source.name}</span>
-                      <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-stone-300 hover:text-sky-600 transition-colors">
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                {/* Dropdown */}
+                <div className="w-full max-w-sm">
+                  {summariesLoading ? (
+                    <div className="flex items-center justify-center gap-2 h-12 px-5 bg-white/10 border border-white/20 rounded-xl text-sm text-blue-200">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading indications...
                     </div>
-                    <p className="text-[11px] text-stone-500 leading-relaxed mb-2">{source.desc}</p>
-                    <Badge variant="secondary" className="text-[10px]">{source.count}</Badge>
+                  ) : (
+                    <Select onValueChange={(v) => setHoveredIndication(v)} value={hoveredIndication ?? undefined}>
+                      <SelectTrigger className="h-12 text-sm bg-white border-white/80 text-slate-700 rounded-xl hover:shadow-lg hover:shadow-white/20 transition-all [&>svg]:text-slate-400">
+                        <SelectValue placeholder="Choose an oncology indication..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {indicationSummaries.filter(ind => coreIndications.includes(ind.name)).map(ind => (
+                          <SelectItem key={ind.name} value={ind.name} className="py-2.5">
+                            <div className="flex items-center gap-3">
+                              <span className="font-medium">{ind.displayName}</span>
+                              <span className="text-[11px] text-slate-400 tabular-nums">{ind.trialCount.toLocaleString()} trials</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* Info card — appears when an indication is selected in dropdown */}
+                {hoveredSummary && (
+                  <div className="w-full max-w-md rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 p-6 text-left transition-all duration-300 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-white">{hoveredSummary.displayName}</h3>
+                      <span className="flex items-center gap-1.5 text-[11px] text-emerald-300 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        {hoveredSummary.recruitingTrials} recruiting
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 mb-5">
+                      <div>
+                        <p className="text-2xl font-bold text-white tabular-nums">{hoveredSummary.trialCount.toLocaleString()}</p>
+                        <p className="text-[11px] text-blue-200/60 mt-0.5">Clinical Trials</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-white tabular-nums">{hoveredSummary.uniqueBiomarkers}</p>
+                        <p className="text-[11px] text-blue-200/60 mt-0.5">Biomarkers</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-white tabular-nums">{hoveredSummary.pubmedArticles}</p>
+                        <p className="text-[11px] text-blue-200/60 mt-0.5">Publications</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                          style={{ width: `${(hoveredSummary.recruitingTrials / hoveredSummary.trialCount * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-blue-200/60 tabular-nums whitespace-nowrap">
+                        {Math.round(hoveredSummary.recruitingTrials / hoveredSummary.trialCount * 100)}% actively recruiting
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedIndication(hoveredSummary.name)}
+                      className="w-full py-3 rounded-xl bg-white text-sm font-semibold transition-all duration-200 hover:shadow-lg hover:shadow-white/20 flex items-center justify-center gap-2"
+                      style={{ color: '#0063BE' }}
+                    >
+                      Explore {hoveredSummary.displayName}
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
                   </div>
+                )}
+              </div>
+
+              {/* Stat pills */}
+              <div className={`flex items-center justify-center gap-6 ${hoveredSummary ? 'mt-8' : 'mt-12'}`}>
+                {[
+                  { label: 'Biomarkers', value: totalBiomarkersAll.toString(), icon: CircleDot },
+                  { label: 'Recruiting', value: totalRecruitingAll.toLocaleString(), icon: Search },
+                  { label: 'Assay Platforms', value: '18', icon: Beaker },
+                  { label: 'Data Sources', value: '3', icon: Database },
+                ].map((stat, i) => (
+                  <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                    <stat.icon className="w-4 h-4 text-blue-300/60" />
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-white tabular-nums">{stat.value}</p>
+                      <p className="text-[10px] text-blue-200/50">{stat.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Capabilities section */}
+          <div className="max-w-6xl mx-auto px-6 py-16">
+            <div className="text-center mb-10">
+              <h2 className="text-xl font-bold text-slate-900 mb-2">What you can do</h2>
+              <p className="text-sm text-slate-500 max-w-xl mx-auto">
+                Insights that typically require weeks of manual research — delivered in seconds from live clinical databases.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-5">
+              {[
+                {
+                  icon: TrendingUp,
+                  title: 'Cutoff Evolution',
+                  description: 'Track how PD-L1, TMB, and MSI thresholds shift across trials year-over-year. Design enrichment strategies based on real data.',
+                },
+                {
+                  icon: Pill,
+                  title: 'Druggability Intel',
+                  description: 'See approved drugs, tractability scores, and the full pipeline for every biomarker target from Open Targets.',
+                },
+                {
+                  icon: Building2,
+                  title: 'Competitive Landscape',
+                  description: 'Identify which sponsors dominate each biomarker-indication space and where the white space opportunities exist.',
+                },
+                {
+                  icon: Target,
+                  title: 'Variant Intelligence',
+                  description: 'Mutation-level analysis joining cBioPortal, OncoKB, CIViC, and trial data for actionable variant insights.',
+                },
+                {
+                  icon: Sparkles,
+                  title: 'AI Research Reports',
+                  description: 'Generate deep-dive biomarker reports with Claude AI — pulling from all indexed data sources in real time.',
+                },
+                {
+                  icon: AlertTriangle,
+                  title: 'CDx Gap Analysis',
+                  description: 'Find trials using biomarkers without FDA-approved companion diagnostics. Spot regulatory gaps before they become problems.',
+                },
+              ].map((feature, i) => (
+                <div key={i} className="group p-5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4" style={{ background: 'linear-gradient(135deg, #EBF3FF 0%, #DBEAFE 100%)' }}>
+                    <feature.icon className="w-5 h-5" style={{ color: '#0063BE' }} />
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1.5">{feature.title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Data sources — minimal strip */}
+          <div className="border-t border-slate-200/60 bg-white">
+            <div className="max-w-6xl mx-auto px-6 py-8">
+              <p className="text-xs text-slate-400 text-center mb-4 font-medium uppercase tracking-wider">Powered by real-time public data</p>
+              <div className="flex items-center justify-center gap-8">
+                {[
+                  { name: 'ClinicalTrials.gov', url: 'https://clinicaltrials.gov', count: `${totalTrialsAll.toLocaleString()} trials` },
+                  { name: 'Open Targets Platform', url: 'https://platform.opentargets.org', count: '4,410 drug records' },
+                  { name: 'PubMed', url: 'https://pubmed.ncbi.nlm.nih.gov', count: `${totalPubmedAll} articles` },
+                ].map((source, i) => (
+                  <a key={i} href={source.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-slate-500 hover:text-[#0063BE] transition-colors group">
+                    <span className="text-sm font-medium">{source.name}</span>
+                    <span className="text-[10px] text-slate-400 group-hover:text-blue-400">({source.count})</span>
+                    <ExternalLink className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </a>
                 ))}
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <footer className="border-t border-stone-200 bg-white mt-4">
-            <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between text-[10px] text-stone-400">
+          <footer className="border-t border-slate-100 bg-slate-50">
+            <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between text-[11px] text-slate-400">
               <span>BiomarkerScope — Built for biomarker strategy, clinical development, and competitive intelligence teams.</span>
               <span>Last updated: Feb 2026</span>
             </div>
@@ -591,32 +533,20 @@ function App() {
               <TabsTrigger value="combinations" className="gap-1.5 text-xs">
                 <Combine className="w-3.5 h-3.5" /> Combinations
               </TabsTrigger>
-              <TabsTrigger value="evidence" className="gap-1.5 text-xs">
-                <Shield className="w-3.5 h-3.5" /> Evidence Grading
-              </TabsTrigger>
               <TabsTrigger value="druggability" className="gap-1.5 text-xs">
                 <Pill className="w-3.5 h-3.5" /> Druggability
-              </TabsTrigger>
-              <TabsTrigger value="strategy-brief" className="gap-1.5 text-xs">
-                <FileText className="w-3.5 h-3.5" /> Strategy Brief
               </TabsTrigger>
               <TabsTrigger value="opportunity-matrix" className="gap-1.5 text-xs">
                 <Grid3X3 className="w-3.5 h-3.5" /> Opportunity Matrix
               </TabsTrigger>
-              <TabsTrigger value="watch" className="gap-1.5 text-xs">
-                <Bell className="w-3.5 h-3.5" /> Biomarker Watch
-              </TabsTrigger>
               <TabsTrigger value="ai-research" className="gap-1.5 text-xs">
                 <Sparkles className="w-3.5 h-3.5" /> AI Research
               </TabsTrigger>
+              <TabsTrigger value="variant-intel" className="gap-1.5 text-xs">
+                <Target className="w-3.5 h-3.5" /> Variant Intelligence
+              </TabsTrigger>
               <TabsTrigger value="assays" className="gap-1.5 text-xs">
                 <TestTube2 className="w-3.5 h-3.5" /> Assays &amp; CDx
-              </TabsTrigger>
-              <TabsTrigger value="gwas" className="gap-1.5 text-xs">
-                <Dna className="w-3.5 h-3.5" /> GWAS &amp; Genetics
-              </TabsTrigger>
-              <TabsTrigger value="news" className="gap-1.5 text-xs">
-                <Newspaper className="w-3.5 h-3.5" /> Latest Updates
               </TabsTrigger>
             </TabsList>
 
@@ -755,38 +685,6 @@ function App() {
                 </Card>
               )}
 
-              <Card className="border-stone-200">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-sm">Latest Biomarker Updates{selectedIndication !== 'all' ? ` — ${selectedIndication}` : ''}</CardTitle>
-                      <CardDescription className="text-xs">Recent developments from FDA, ASCO, ESMO &amp; PubMed</CardDescription>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab('news')}>
-                      View All <ArrowUpRight className="w-3 h-3 ml-1" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {indicationNews.slice(0, 5).map(n => (
-                      <div key={n.id} className="flex items-start gap-3 p-3 rounded-md bg-stone-50 hover:bg-stone-100 transition-colors">
-                        <Badge variant={n.source === 'FDA' ? 'default' : 'outline'} className="mt-0.5 shrink-0 text-[10px]">{n.source}</Badge>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium leading-snug">{n.title}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-stone-400">{n.date}</span>
-                            {n.biomarkers.map(b => <Badge key={b} variant="outline" className="text-[10px] py-0">{b}</Badge>)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {indicationNews.length === 0 && (
-                      <p className="text-xs text-stone-400 text-center py-6">No updates found for this indication. Try "All Indications" for a complete view.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
 
             {/* TRIAL BIOMARKERS TAB */}
@@ -984,25 +882,12 @@ function App() {
               />
             </TabsContent>
 
-            {/* EVIDENCE GRADING TAB (Feature 8) */}
-            <TabsContent value="evidence">
-              <EvidenceGrading
-                trials={indicationTrials}
-                assays={indicationAssays}
-                indication={selectedIndication}
-                biomarkers={uniqueBiomarkers}
-              />
-            </TabsContent>
 
             {/* DRUGGABILITY TAB — Open Targets data */}
             <TabsContent value="druggability">
               <Druggability indication={selectedIndication} />
             </TabsContent>
 
-            {/* STRATEGY BRIEF TAB — Cross-database intelligence */}
-            <TabsContent value="strategy-brief">
-              <StrategyBrief indication={selectedIndication} />
-            </TabsContent>
 
             {/* OPPORTUNITY MATRIX TAB — Biomarker × Indication heatmap */}
             <TabsContent value="opportunity-matrix">
@@ -1010,18 +895,11 @@ function App() {
                 indication={selectedIndication}
                 onSelectBiomarkerIndication={(biomarker, ind) => {
                   setSelectedIndication(ind)
-                  setActiveTab('strategy-brief')
+                  setActiveTab('dashboard')
                 }}
               />
             </TabsContent>
 
-            {/* BIOMARKER WATCH TAB — Temporal intelligence feed */}
-            <TabsContent value="watch">
-              <BiomarkerWatch
-                indication={selectedIndication}
-                onOpenTrial={(nctId) => setSelectedTrialNctId(nctId)}
-              />
-            </TabsContent>
 
             {/* AI RESEARCH REPORT TAB — Deep research with live agent trace */}
             <TabsContent value="ai-research">
@@ -1029,6 +907,11 @@ function App() {
                 indication={selectedIndication}
                 onOpenTrial={(nctId) => setSelectedTrialNctId(nctId)}
               />
+            </TabsContent>
+
+            {/* VARIANT INTELLIGENCE TAB — Mutation-level cross-source data */}
+            <TabsContent value="variant-intel">
+              <VariantLandscape indication={selectedIndication} />
             </TabsContent>
 
             {/* ASSAYS TAB */}
@@ -1102,142 +985,16 @@ function App() {
               </Card>
             </TabsContent>
 
-            {/* GWAS & GENETICS TAB */}
-            <TabsContent value="gwas">
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="border-stone-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">GWAS Associations{selectedIndication !== 'all' ? ` — ${selectedIndication}` : ''}</CardTitle>
-                    <CardDescription className="text-xs">Germline variants influencing biomarker biology (NHGRI-EBI GWAS Catalog)</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[480px]">
-                      <div className="space-y-3">
-                        {indicationGWAS.map((g, i) => (
-                          <div key={i} className="p-3 border border-stone-200 rounded-md hover:border-stone-300 transition-colors">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="font-mono text-[10px]">{g.rsId}</Badge>
-                                <span className="text-xs font-semibold text-sky-700">{g.gene}</span>
-                              </div>
-                              <span className="text-[10px] text-stone-400">p = {g.pValue.toExponential(1)}</span>
-                            </div>
-                            <p className="text-xs text-stone-700 font-medium mb-1">{g.traitName}</p>
-                            <p className="text-[11px] text-stone-500 leading-relaxed mb-2">{g.biomarkerRelevance}</p>
-                            <div className="flex items-center gap-2 text-[10px] text-stone-400">
-                              {g.oddsRatio && <span>OR: {g.oddsRatio}</span>}
-                              <span>Risk: {g.riskAllele}</span>
-                              <span>Pop: {g.population}</span>
-                              <a href={`https://pubmed.ncbi.nlm.nih.gov/${g.pubmedId}`} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline flex items-center gap-0.5">
-                                PMID:{g.pubmedId} <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                        {indicationGWAS.length === 0 && (
-                          <p className="text-xs text-stone-400 text-center py-8">No GWAS associations found for this indication's biomarkers.</p>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
 
-                <Card className="border-stone-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Open Targets Association Scores{selectedIndication !== 'all' ? ` — ${selectedIndication}` : ''}</CardTitle>
-                    <CardDescription className="text-xs">Target-disease evidence from Open Targets Platform</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[480px]">
-                      <div className="space-y-4">
-                        {indicationOpenTargets.map((ot, i) => (
-                          <div key={i} className="p-3 border border-stone-200 rounded-md">
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <span className="text-xs font-semibold">{ot.targetName}</span>
-                                <span className="text-[10px] text-stone-400 ml-2">→ {ot.diseaseName}</span>
-                              </div>
-                              <Badge className="text-[10px]">Score: {ot.associationScore.toFixed(2)}</Badge>
-                            </div>
-                            <div className="space-y-1.5">
-                              {Object.entries(ot.datatypeScores).map(([key, val]) => (
-                                <div key={key} className="flex items-center gap-2">
-                                  <span className="text-[10px] text-stone-500 w-28 text-right capitalize">{key.replace(/_/g, ' ')}</span>
-                                  <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full transition-all"
-                                      style={{
-                                        width: `${val * 100}%`,
-                                        backgroundColor: val > 0.8 ? '#22c55e' : val > 0.5 ? '#eab308' : '#ef4444'
-                                      }}
-                                    />
-                                  </div>
-                                  <span className="text-[10px] text-stone-400 w-8">{(val * 100).toFixed(0)}%</span>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-2 flex gap-1">
-                              <a href={`https://platform.opentargets.org/target/${ot.targetId}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-sky-600 hover:underline flex items-center gap-0.5">
-                                Open Targets <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                        {indicationOpenTargets.length === 0 && (
-                          <p className="text-xs text-stone-400 text-center py-8">No Open Targets associations found for this indication.</p>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* NEWS TAB */}
-            <TabsContent value="news">
-              <div className="grid grid-cols-1 gap-3">
-                {indicationNews.map(n => (
-                  <Card key={n.id} className="border-stone-200 hover:border-stone-300 transition-colors">
-                    <CardContent className="py-4">
-                      <div className="flex items-start gap-4">
-                        <div className="shrink-0 flex flex-col items-center gap-1">
-                          <Badge variant={n.source === 'FDA' ? 'default' : n.source === 'ASCO' ? 'secondary' : 'outline'} className="text-[10px] w-14 justify-center">{n.source}</Badge>
-                          <span className="text-[10px] text-stone-400">{n.date}</span>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-sm font-semibold leading-snug mb-1.5">{n.title}</h3>
-                          <p className="text-xs text-stone-600 leading-relaxed mb-2">{n.summary}</p>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {n.biomarkers.map(b => <Badge key={b} variant="outline" className="text-[10px]">{b}</Badge>)}
-                            <Separator orientation="vertical" className="h-3" />
-                            {n.tags.map(t => <Badge key={t} variant="secondary" className="text-[10px] py-0">{t}</Badge>)}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {indicationNews.length === 0 && (
-                  <Card className="border-stone-200">
-                    <CardContent className="py-12 text-center">
-                      <Newspaper className="w-10 h-10 text-stone-300 mx-auto mb-3" />
-                      <p className="text-sm text-stone-500">No updates found for {selectedIndication}.</p>
-                      <p className="text-xs text-stone-400 mt-1">Select "All Indications" for the full news feed.</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </TabsContent>
           </Tabs>
         </main>
 
         <footer className="border-t border-stone-200 bg-white mt-8">
           <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
-            <p className="text-[10px] text-stone-400">BiomarkerScope — Oncology Biomarker Analytics. Data from ClinicalTrials.gov, PubMed, GWAS Catalog &amp; Open Targets.</p>
+            <p className="text-[10px] text-stone-400">BiomarkerScope — Oncology Biomarker Analytics. Data from ClinicalTrials.gov, PubMed &amp; Open Targets.</p>
             <div className="flex items-center gap-3 text-[10px] text-stone-400">
               <span>Last updated: Feb 2026</span>
               <a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer" className="hover:text-stone-600">ClinicalTrials.gov</a>
-              <a href="https://www.ebi.ac.uk/gwas/" target="_blank" rel="noopener noreferrer" className="hover:text-stone-600">GWAS Catalog</a>
               <a href="https://platform.opentargets.org" target="_blank" rel="noopener noreferrer" className="hover:text-stone-600">Open Targets</a>
             </div>
           </div>
