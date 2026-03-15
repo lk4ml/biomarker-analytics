@@ -222,11 +222,11 @@ function App() {
           {/* Minimal top bar */}
           <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-50">
             <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0063BE 0%, #0084FF 100%)' }}>
                   <Microscope className="w-4.5 h-4.5 text-white" />
                 </div>
-                <span className="text-sm font-bold tracking-tight text-slate-900">BiomarkerScope</span>
+                <span className="text-sm font-bold tracking-tight text-slate-900 hover:text-blue-600 transition-colors">BiomarkerScope</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
@@ -441,12 +441,12 @@ function App() {
         {/* HEADER with indication context */}
         <header className="border-b border-stone-200 bg-white sticky top-0 z-50">
           <div className="max-w-[1400px] mx-auto px-6 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setSelectedIndication('all')}>
               <div className="w-8 h-8 bg-sky-600 rounded flex items-center justify-center">
                 <Microscope className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-semibold tracking-tight">BiomarkerScope</h1>
+                <h1 className="text-lg font-semibold tracking-tight hover:text-sky-600 transition-colors">BiomarkerScope</h1>
                 <p className="text-xs text-stone-500">Oncology Biomarker Analytics Platform</p>
               </div>
             </div>
